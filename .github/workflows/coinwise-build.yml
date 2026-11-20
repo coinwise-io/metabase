@@ -1,0 +1,202 @@
+name: Coinwise build
+
+# Builds the open-source (AGPL) edition of this fork and publishes it:
+#   - the uberjar as a workflow artifact
+#   - a Docker image to ghcr.io/<owner>/metabase
+#
+# Only the OSS edition is built. The jar is checked to contain nothing from `enterprise/`, which is under the
+# Metabase Commercial License and must never ship in our build.
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+jobs:
+  uberjar:
+    name: Build uberjar (OSS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MB_EDITION: oss
+      INTERACTIVE: false
+      CI: true
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Free disk space
+        uses: ./.github/actions/maximize-disk-space
+
+      - name: Prepare front-end environment
+        uses: ./.github/actions/prepare-frontend
+        with:
+          node-version: "22"
+
+      - name: Prepare back-end environment
+        uses: ./.github/actions/prepare-backend
+        with:
+          java-version: "25"
+
+      - name: Build
+        run: ./bin/build.sh
+
+      - name: Check that no enterprise code is in the jar
+        run: |
+          set -euo pipefail
+          entries=$(unzip -Z1 target/uberjar/metabase.jar)
+          if grep -E '^(metabase_enterprise/|enterprise/)' <<<"$entries"; then
+            echo "::error::The uberjar contains enterprise code (Metabase Commercial License)."
+            exit 1
+          fi
+          echo "No enterprise code in the uberjar."
+
+      - name: Check that the uberjar starts
+        run: |
+          java --add-opens java.base/java.nio=ALL-UNNAMED -jar target/uberjar/metabase.jar > metabase.log 2>&1 &
+          for _ in $(seq 1 300); do
+            if curl -s http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+              echo "Metabase is healthy."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Metabase did not become healthy within 5 minutes."
+          tail -n 200 metabase.log
+          exit 1
+
+      - name: Checksum
+        run: |
+          git rev-parse HEAD > target/uberjar/COMMIT-ID
+          (cd target/uberjar && sha256sum metabase.jar > SHA256.sum)
+
+      - name: Upload uberjar
+        uses: actions/upload-artifact@v7
+        with:
+          name: metabase-oss-${{ github.sha }}
+          path: |
+            target/uberjar/metabase.jar
+            target/uberjar/COMMIT-ID
+            target/uberjar/SHA256.sum
+          compression-level: 0
+          retention-days: 30
+
+      # The shared prepare-* actions only restore caches (upstream CI saves them), so save them here to make
+      # the next build of this fork faster. A key that already exists is not an error worth failing for.
+      - name: Cache spec
+        id: cache-spec
+        if: always()
+        run: .github/scripts/cache-keys.sh | tee -a "$GITHUB_OUTPUT"
+      - name: Save M2 cache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-spec.outputs.m2-path }}
+          key: ${{ steps.cache-spec.outputs.m2-key }}
+      - name: Save bun store
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-spec.outputs.bun-store-path }}
+          key: ${{ steps.cache-spec.outputs.bun-store-key }}
+      - name: Save Clojure CLI
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-spec.outputs.clojure-path }}
+          key: ${{ steps.cache-spec.outputs.clojure-key }}
+
+  docker:
+    name: Build and publish Docker image
+    needs: uberjar
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Download uberjar
+        uses: actions/download-artifact@v8
+        with:
+          name: metabase-oss-${{ github.sha }}
+          path: bin/docker
+
+      - name: Image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/metabase" >> "$GITHUB_OUTPUT"
+
+      - name: Image tags
+        id: tags
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          tags="$IMAGE:sha-${GITHUB_SHA::12}"
+          if [ "$REF_TYPE" = tag ]; then
+            tags="$tags,$IMAGE:$REF_NAME,$IMAGE:latest"
+          elif [ "$REF_NAME" = master ]; then
+            tags="$tags,$IMAGE:master"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Build image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: bin/docker/.
+          platforms: linux/amd64
+          build-args: GIT_COMMIT_SHA=${{ github.sha }}
+          load: true
+          tags: ${{ steps.tags.outputs.tags }}
+
+      - name: Check that the image starts
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          docker run --rm -d --name metabase -p 3000:3000 "$IMAGE:sha-${GITHUB_SHA::12}"
+          for _ in $(seq 1 300); do
+            if curl -s http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+              echo "Metabase is healthy."
+              docker stop metabase
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::The image did not become healthy within 5 minutes."
+          docker logs metabase | tail -n 200
+          exit 1
+
+      - name: Push image
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          IFS=, read -ra list <<<"$TAGS"
+          for tag in "${list[@]}"; do docker push "$tag"; done
+          {
+            echo "### Docker image"
+            for tag in "${list[@]}"; do echo "- \`$tag\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
