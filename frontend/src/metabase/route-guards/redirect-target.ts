@@ -2,7 +2,11 @@ import { getBasename } from "metabase/utils/basename";
 import { isSameOrSiteUrlOrigin } from "metabase/utils/dom";
 
 /** Paths that are handled by the backend server, not the frontend SPA router. */
-export const BACKEND_ONLY_PATH_PREFIXES = ["/oauth/", "/auth/sso/"];
+export const BACKEND_ONLY_PATH_PREFIXES = [
+  "/oauth/",
+  "/auth/sso/",
+  "/auth/oidc",
+];
 
 export const isBackendOnlyPath = (path: string): boolean =>
   BACKEND_ONLY_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));

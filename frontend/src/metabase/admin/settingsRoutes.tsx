@@ -90,6 +90,11 @@ const ldapAuth = () =>
     /* webpackChunkName: "admin-settings" */ "./settings/components/SettingsLdapForm"
   ).then(({ SettingsLdapForm }) => ({ Component: SettingsLdapForm }));
 
+const ssoOidcAuth = () =>
+  import(
+    /* webpackChunkName: "admin-settings" */ "./settings/components/SettingsSsoOidcForm"
+  ).then(({ SettingsSsoOidcForm }) => ({ Component: SettingsSsoOidcForm }));
+
 const domainsSettings = () =>
   import(
     /* webpackChunkName: "admin-settings" */ "./settings/components/SettingsPages/DomainsSettingsPage"
@@ -206,6 +211,7 @@ export const getSettingsRoutes = (store: Store<State>) => {
         </Route>
         <Route path="authentication/google" lazy={googleAuth} />
         <Route path="authentication/ldap" lazy={ldapAuth} />
+        <Route path="authentication/sso-oidc" lazy={ssoOidcAuth} />
         <Route
           path="authentication/saml"
           lazy={PLUGIN_AUTH_PROVIDERS.settingsSAMLForm}

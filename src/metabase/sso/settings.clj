@@ -224,6 +224,179 @@
                (setting/get-value-of-type :boolean :slack-connect-enabled)
                false)))
 
+;;; ------------------------------------------------ OIDC SSO (generic) ------------------------------------------------
+;;
+;; Settings for the generic OpenID Connect single sign-on provider (`:provider/sso-oidc`), which works with any
+;; standards-compliant identity provider (JumpCloud, Keycloak, Okta, Entra ID, ...). They are prefixed `sso-oidc-` so
+;; they never collide with settings defined elsewhere.
+
+(defsetting sso-oidc-issuer-uri
+  (deferred-tru "Issuer URI of the OpenID Connect identity provider. Its discovery document must be served at <issuer>/.well-known/openid-configuration.")
+  :encryption :when-encryption-key-set
+  :export?    false
+  :audit      :getter
+  :setter     (fn [new-value]
+                (setting/set-value-of-type! :string :sso-oidc-issuer-uri
+                                            (some-> new-value str/trim (str/replace #"/+$" "") not-empty))))
+
+(defsetting sso-oidc-client-id
+  (deferred-tru "Client ID of the Metabase application registered with the OpenID Connect identity provider.")
+  :encryption :when-encryption-key-set
+  :export?    false
+  :audit      :getter
+  :setter     (fn [new-value]
+                (setting/set-value-of-type! :string :sso-oidc-client-id (some-> new-value str/trim not-empty))))
+
+(defsetting sso-oidc-client-secret
+  (deferred-tru "Client secret of the Metabase application registered with the OpenID Connect identity provider.")
+  :encryption :when-encryption-key-set
+  :export?    false
+  :sensitive? true
+  :audit      :no-value
+  :getter     (fn []
+                (-> (setting/get-value-of-type :string :sso-oidc-client-secret)
+                    (u.str/mask 4)))
+  :setter     (fn [new-value]
+                (let [current (setting/get-value-of-type :string :sso-oidc-client-secret)]
+                  ;; a settings form saves back the masked value it was shown; keep the real secret then
+                  (when-not (and current (= new-value (u.str/mask current 4)))
+                    (setting/set-value-of-type! :string :sso-oidc-client-secret (some-> new-value str/trim not-empty))))))
+
+(defn unobfuscated-sso-oidc-client-secret
+  "The unmasked value of [[sso-oidc-client-secret]]."
+  []
+  (setting/get-value-of-type :string :sso-oidc-client-secret))
+
+(defsetting sso-oidc-scopes
+  (deferred-tru "Space-separated scopes requested from the OpenID Connect identity provider. Must include ''openid''.")
+  :encryption :no
+  :export?    false
+  :default    "openid email profile"
+  :audit      :getter
+  :setter     (fn [new-value]
+                (let [scopes (some-> new-value str/trim not-empty)]
+                  (when (and scopes (not (contains? (set (str/split scopes #"\s+")) "openid")))
+                    (throw (ex-info (tru "The scopes must include \"openid\".") {:status-code 400})))
+                  (setting/set-value-of-type! :string :sso-oidc-scopes scopes))))
+
+(defsetting sso-oidc-attribute-email
+  (deferred-tru "ID token claim that holds the user''s email address.")
+  :encryption :no
+  :export?    false
+  :default    "email"
+  :audit      :getter)
+
+(defsetting sso-oidc-attribute-firstname
+  (deferred-tru "ID token claim that holds the user''s first name.")
+  :encryption :no
+  :export?    false
+  :default    "given_name"
+  :audit      :getter)
+
+(defsetting sso-oidc-attribute-lastname
+  (deferred-tru "ID token claim that holds the user''s last name.")
+  :encryption :no
+  :export?    false
+  :default    "family_name"
+  :audit      :getter)
+
+(defsetting sso-oidc-user-provisioning-enabled
+  (deferred-tru "When a user signs in with OpenID Connect for the first time, create a Metabase account for them automatically.")
+  :type    :boolean
+  :export? false
+  :default true
+  :audit   :getter)
+
+(defsetting sso-oidc-group-sync
+  (deferred-tru "Synchronize the user''s Metabase group memberships with the groups claim of the OpenID Connect ID token at every sign-in.")
+  :type    :boolean
+  :export? false
+  :default false
+  :audit   :getter)
+
+(defsetting sso-oidc-attribute-groups
+  (deferred-tru "ID token claim that holds the list of the user''s groups.")
+  :encryption :no
+  :export?    false
+  :default    "groups"
+  :audit      :getter)
+
+(defsetting sso-oidc-group-mappings
+  ;; Should be in the form {"identity provider group name": [1, 2, 3]}, where the values are Metabase group IDs.
+  (deferred-tru "JSON mapping identity provider group names to lists of Metabase group IDs.")
+  :encryption :when-encryption-key-set
+  :type       :json
+  :export?    false
+  :default    {}
+  :audit      :getter
+  :getter     (fn []
+                ;; keep the identity provider's group names as strings: they are arbitrary text, not keywords
+                (or (some-> (setting/get-value-of-type :string :sso-oidc-group-mappings) json/decode)
+                    {}))
+  :setter     (fn [new-value]
+                (let [mappings (if (string? new-value) (json/decode new-value) new-value)]
+                  (when (some? mappings)
+                    (when-not (and (map? mappings)
+                                   (every? (fn [[k v]]
+                                             (and (or (string? k) (keyword? k))
+                                                  (sequential? v)
+                                                  (every? pos-int? v)))
+                                           mappings))
+                      (throw (ex-info (tru "Group mappings must map group names to lists of Metabase group IDs.")
+                                      {:status-code 400}))))
+                  (setting/set-value-of-type! :json :sso-oidc-group-mappings mappings))))
+
+(defsetting sso-oidc-login-button-label
+  (deferred-tru "Text of the single sign-on button on the login page.")
+  :encryption :no
+  :visibility :public
+  :export?    false
+  :audit      :getter)
+
+(defsetting sso-oidc-configured
+  (deferred-tru "Are the mandatory OpenID Connect settings (issuer, client ID and client secret) set?")
+  :type       :boolean
+  :export?    false
+  :setter     :none
+  :getter     (fn [] (boolean (and (sso-oidc-issuer-uri)
+                                   (sso-oidc-client-id)
+                                   (unobfuscated-sso-oidc-client-secret)))))
+
+(defsetting sso-oidc-enabled
+  (deferred-tru "Is OpenID Connect single sign-on configured and enabled?")
+  :type       :boolean
+  :visibility :public
+  :export?    false
+  :default    false
+  :audit      :getter
+  :getter     (fn []
+                (if (sso-oidc-configured)
+                  (boolean (setting/get-value-of-type :boolean :sso-oidc-enabled))
+                  false))
+  :setter     (fn [new-value]
+                (when (and new-value (not (sso-oidc-configured)))
+                  (throw (ex-info (tru "OpenID Connect is not configured. Set the issuer, client ID and client secret first.")
+                                  {:status-code 400})))
+                (setting/set-value-of-type! :boolean :sso-oidc-enabled new-value)))
+
+(defsetting sso-oidc-password-login-admins-only
+  (deferred-tru "When OpenID Connect single sign-on is enabled, only administrators may sign in with a password (for break-glass accounts); everybody else must use single sign-on.")
+  :type    :boolean
+  :export? false
+  :default false
+  :audit   :getter
+  ;; only in force while OIDC is enabled, so turning OIDC off never locks people out
+  :getter  (fn []
+             (and (sso-oidc-enabled)
+                  (boolean (setting/get-value-of-type :boolean :sso-oidc-password-login-admins-only)))))
+
+(defn password-login-allowed?
+  "Whether a user who is (`superuser?` true) or is not an administrator may sign in with a password or get a password
+   reset, given [[sso-oidc-password-login-admins-only]]."
+  [superuser?]
+  (or (boolean superuser?)
+      (not (sso-oidc-password-login-admins-only))))
+
 ;;;
 ;;; Google Auth
 ;;;
@@ -295,6 +468,7 @@
   "Any SSO provider is configured and enabled"
   []
   (or (google-auth-enabled)
+      (sso-oidc-enabled)
       ;; read by keyword the way `ee-sso-configured?` above does: `ldap-enabled` is defined in
       ;; [[metabase.sso.ldap.settings]], which this namespace cannot require
       (setting/get :ldap-enabled)
@@ -309,6 +483,7 @@
    (case (keyword sso-source)
      :google (google-auth-enabled)
      :ldap   (setting/get :ldap-enabled)
+     :sso-oidc (sso-oidc-enabled)
      ;; Enterprise SSO providers: setting/get respects the :feature flag on each
      ;; setting — returning the default (false) when the feature is unlicensed (e.g.,
      ;; after license downgrade), so users aren't locked out of password reset.

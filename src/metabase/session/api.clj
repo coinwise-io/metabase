@@ -333,9 +333,14 @@
   (future
     (when-let [{user-id      :id
                 sso-source   :sso_source
-                is-active?   :is_active :as user}
+                is-active?   :is_active
+                superuser?   :is_superuser :as user}
                (session.db/user-by-email email)]
       (cond
+        ;; With OIDC single sign-on enforced, a non-admin gets no reset link: the email tells them to use SSO.
+        (not (sso/password-login-allowed? superuser?))
+        (messages/send-password-reset-email! email (or sso-source :sso-oidc) nil is-active?)
+
         ;; SSO-only users (see `sso/sso-only-user?`) should use their SSO provider, not password reset.
         (sso/sso-only-user? user-id email sso-source)
         (messages/send-password-reset-email! email (or sso-source :ldap) nil is-active?)
@@ -420,6 +425,12 @@
         ;; /auth/login to use their SSO provider.
         _            (when-not (or (:success? grant-result) (session.settings/enable-password-login))
                        (throw (ex-info (tru "Password login is disabled for this instance.") {:status-code 400})))
+        ;; With OIDC single sign-on enforced, refuse a non-admin's reset before anything changes.
+        _            (when-not (:success? grant-result)
+                       (when-let [user-id (auth-identity/parse-token-user-id (:token credentials))]
+                         (when-not (sso/password-login-allowed? (:is_superuser (session.db/user user-id)))
+                           (throw (ex-info (tru "Password login is only available to administrators. Sign in with single sign-on.")
+                                           {:status-code 400})))))
         skip-session (boolean (when-not (:success? grant-result)
                                 (some-> (auth-identity/parse-token-user-id (:token credentials))
                                         session.db/user-sso-source

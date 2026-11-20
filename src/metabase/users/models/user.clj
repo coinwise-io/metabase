@@ -310,14 +310,14 @@
     :else                                     #{}))
 
 (defn- email-change-allowed?
-  "Whether the current user may give `user` the `:email` in `changes`, which only a superuser may for a Google or LDAP
-  user, or for a `user` selected without its `:sso_source`."
+  "Whether the current user may give `user` the `:email` in `changes`, which only a superuser may for a Google, LDAP or
+  OIDC SSO user, or for a `user` selected without its `:sso_source`."
   [{:keys [sso_source email] :as user} changes]
   (or api/*is-superuser?*
       (not (contains? changes :email))
       (= email (:email changes))
       (and (contains? user :sso_source)
-           (not (#{:google :ldap} sso_source)))))
+           (not (#{:google :ldap :sso-oidc} sso_source)))))
 
 (defmethod mi/can-update? :model/User
   [user changes]

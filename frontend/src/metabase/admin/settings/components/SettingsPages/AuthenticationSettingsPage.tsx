@@ -13,6 +13,7 @@ import { Box, Flex, Stack } from "metabase/ui";
 import { ApiKeysAuthCard } from "../../auth/components/ApiKeysAuthCard";
 import { GoogleAuthCard } from "../../auth/containers/GoogleAuthCard/GoogleAuthCard";
 import { LdapAuthCard } from "../../auth/containers/LdapAuthCard";
+import { SsoOidcAuthCard } from "../../auth/containers/SsoOidcAuthCard";
 import { ManageApiKeys } from "../ApiKeys/ManageApiKeys";
 
 export function AuthenticationSettingsPage({
@@ -36,6 +37,7 @@ export function AuthenticationSettingsPage({
         <Stack gap="xl">
           <GoogleAuthCard />
           <LdapAuthCard />
+          <SsoOidcAuthCard />
           <ApiKeysAuthCard />
           <PLUGIN_MULTI_FACTOR_AUTH.AdminAuthCard />
         </Stack>

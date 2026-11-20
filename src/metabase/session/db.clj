@@ -151,9 +151,10 @@
   (t2/select-one [:model/AuthIdentity :provider] :id auth-identity-id))
 
 (mu/defn user-by-email
-  "The id, SSO source, and active flag of the User whose email matches `email` case-insensitively, or nil."
+  "The id, SSO source, active flag and superuser flag of the User whose email matches `email` case-insensitively, or
+  nil."
   [email :- :string]
-  (t2/select-one [:model/User :id :sso_source :is_active] :%lower.email (u/lower-case-en email)))
+  (t2/select-one [:model/User :id :sso_source :is_active :is_superuser] :%lower.email (u/lower-case-en email)))
 
 (mu/defn user
   "The User with `user-id`, or nil."

@@ -89,6 +89,7 @@ export interface User extends BaseUser {
     | "saml"
     | "oidc"
     | "slack"
+    | "sso-oidc"
     | null;
   has_used_password?: boolean;
   custom_homepage: {

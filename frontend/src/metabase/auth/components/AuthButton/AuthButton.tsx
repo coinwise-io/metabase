@@ -20,6 +20,26 @@ export function AuthCardButton({ className, ...props }: AuthButtonProps) {
   );
 }
 
+type AuthAnchorProps = AnchorProps & ComponentPropsWithoutRef<"a">;
+
+/** A link that leaves the app, e.g. to a sign-in flow the backend serves */
+export function AuthTextAnchor({ className, ...props }: AuthAnchorProps) {
+  return (
+    <Anchor className={cx(S.link, className)} underline="never" {...props} />
+  );
+}
+
+/** A card-styled link that leaves the app, e.g. to a sign-in flow the backend serves */
+export function AuthCardAnchor({ className, ...props }: AuthAnchorProps) {
+  return (
+    <Anchor
+      className={cx(S.link, S.card, className)}
+      underline="never"
+      {...props}
+    />
+  );
+}
+
 type AuthTextLinkProps = AnchorProps & Omit<LinkProps, "ref">;
 
 export function AuthTextLink({ className, ...props }: AuthTextLinkProps) {

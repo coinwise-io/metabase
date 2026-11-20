@@ -10,6 +10,7 @@
    [metabase.request.core :as request]
    [metabase.session.db :as session.db]
    [metabase.session.settings :as session.settings]
+   [metabase.sso.core :as sso]
    [metabase.util :as u]
    [metabase.util.encryption :as encryption]
    [metabase.util.i18n :refer [tru]]
@@ -100,6 +101,11 @@
       (when (and (= "password" (:provider auth-identity))
                  (not (session.settings/enable-password-login)))
         (throw (ex-info (str (tru "Password login is disabled for this instance."))
+                        {:status-code 400})))
+      ;; with OIDC single sign-on enforced, only administrators (break-glass accounts) get password sessions
+      (when (and (= "password" (:provider auth-identity))
+                 (not (sso/password-login-allowed? (:is_superuser (session.db/user (:user_id session))))))
+        (throw (ex-info (str (tru "Password login is only available to administrators. Sign in with single sign-on."))
                         {:status-code 400})))))
   (let [key-hashed (or (:key_hashed session) (hash-session-key session-key))]
     (cond-> (-> session

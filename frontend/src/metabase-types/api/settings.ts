@@ -626,6 +626,8 @@ interface PublicSettings {
   "enable-sandboxes?": boolean;
   "google-auth-client-id": string | null;
   "google-auth-enabled": boolean;
+  "sso-oidc-enabled"?: boolean;
+  "sso-oidc-login-button-label"?: string | null;
   "has-user-setup": boolean;
   "help-link": HelpLinkSetting;
   "help-link-custom-destination": string;
@@ -898,6 +900,19 @@ export interface EnterpriseSettings extends Settings {
   "slack-connect-enabled"?: boolean | null;
   "slack-connect-client-id"?: string | null;
   "slack-connect-client-secret"?: string | null;
+  "sso-oidc-configured"?: boolean;
+  "sso-oidc-issuer-uri"?: string | null;
+  "sso-oidc-client-id"?: string | null;
+  "sso-oidc-client-secret"?: string | null;
+  "sso-oidc-scopes"?: string | null;
+  "sso-oidc-attribute-email"?: string | null;
+  "sso-oidc-attribute-firstname"?: string | null;
+  "sso-oidc-attribute-lastname"?: string | null;
+  "sso-oidc-attribute-groups"?: string | null;
+  "sso-oidc-user-provisioning-enabled"?: boolean;
+  "sso-oidc-password-login-admins-only"?: boolean;
+  "sso-oidc-group-sync"?: boolean;
+  "sso-oidc-group-mappings"?: GroupMappings | null;
   "mcp-apps-cors-enabled-clients": string[] | null;
   "mcp-apps-cors-custom-origins": string | null;
   "transforms-meter-locked": boolean | null;

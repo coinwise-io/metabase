@@ -12,6 +12,8 @@ interface SetupOpts {
   initialRoute?: string;
   isPasswordLoginEnabled?: boolean;
   isGoogleAuthEnabled?: boolean;
+  isSsoOidcEnabled?: boolean;
+  ssoOidcLoginButtonLabel?: string | null;
   enterprisePlugins?: Parameters<typeof setupEnterpriseOnlyPlugin>[0][];
   tokenFeatures?: Partial<TokenFeatures>;
 }
@@ -20,6 +22,8 @@ export const setup = ({
   initialRoute = "/auth/login",
   isPasswordLoginEnabled = true,
   isGoogleAuthEnabled = false,
+  isSsoOidcEnabled = false,
+  ssoOidcLoginButtonLabel = null,
   enterprisePlugins,
   tokenFeatures = {},
 }: SetupOpts = {}) => {
@@ -27,6 +31,8 @@ export const setup = ({
     settings: mockSettings({
       "enable-password-login": isPasswordLoginEnabled,
       "google-auth-enabled": isGoogleAuthEnabled,
+      "sso-oidc-enabled": isSsoOidcEnabled,
+      "sso-oidc-login-button-label": ssoOidcLoginButtonLabel,
       "token-features": createMockTokenFeatures(tokenFeatures),
     }),
   });

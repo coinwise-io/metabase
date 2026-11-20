@@ -3,6 +3,7 @@
    [metabase.api.util.handlers :as handlers]
    [metabase.config.core :as config]
    [metabase.sso.api.slack-connect :as slack-connect.api]
+   [metabase.sso.api.sso-oidc-auth :as sso-oidc-auth.api]
    [ring.util.response :as response]))
 
 (let [bad-req (response/bad-request {:message "The auth/sso endpoint only exists in enterprise builds"
@@ -25,6 +26,8 @@
   (handlers/routes
    ;; Slack Connect routes always available (OSS)
    (handlers/route-map-handler {"/auth" {"/sso" {"/slack-connect" slack-connect.api/routes}}})
+   ;; Generic OpenID Connect single sign-on (OSS, see `metabase.sso.providers.sso-oidc`)
+   (handlers/route-map-handler {"/auth" {"/oidc" sso-oidc-auth.api/routes}})
    ;; Other SSO routes require EE
    ;; This could be a zero-arity `defenterprise` that returns the EE routes, with `ee-missing-routes` as its OSS body,
    ;; which would take this namespace off the OSS-to-EE allowlist in `metabase.core.modules-test`. The EE body would

@@ -32,6 +32,7 @@
  [metabase.sso.settings
   google-auth-client-id
   google-auth-enabled
+  password-login-allowed?
   send-new-sso-user-admin-email?
   sso-enabled?
   sso-source-enabled?]

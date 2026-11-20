@@ -20,6 +20,7 @@ const SSO_SOURCE_ENABLED_SETTING = {
   oidc: "oidc-enabled",
   slack: "slack-connect-enabled",
   scim: "scim-enabled",
+  "sso-oidc": "sso-oidc-enabled",
 } as const satisfies Record<
   NonNullable<User["sso_source"]>,
   EnterpriseSettingKey

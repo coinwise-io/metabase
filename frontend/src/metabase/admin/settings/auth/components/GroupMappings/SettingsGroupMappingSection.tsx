@@ -11,7 +11,10 @@ import {
   useGroupMappings,
 } from "./use-group-mappings";
 
-type GroupSyncSettingKey = "ldap-group-sync" | "saml-group-sync";
+type GroupSyncSettingKey =
+  | "ldap-group-sync"
+  | "saml-group-sync"
+  | "sso-oidc-group-sync";
 
 type SettingsGroupMappingSectionProps = {
   syncSettingKey: GroupSyncSettingKey;
@@ -21,7 +24,7 @@ type SettingsGroupMappingSectionProps = {
   namesValidatedOnSave?: boolean;
   nameLabel: string;
   namePlaceholder: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   disabled?: boolean;
   onToggle?: (enabled: boolean) => void;
 } & BoxProps;
