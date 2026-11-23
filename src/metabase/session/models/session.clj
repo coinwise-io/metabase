@@ -14,7 +14,7 @@
    [metabase.session.db :as session.db]
    [metabase.session.schema :as session.schema]
    [metabase.session.settings :as session.settings]
-   [metabase.sso.core :as sso]
+   [metabase.sso.settings :as sso.settings]
    [metabase.util :as u]
    [metabase.util.encryption :as encryption]
    [metabase.util.i18n :refer [tru]]
@@ -125,7 +125,7 @@
       (when-not (session.settings/enable-password-login)
         (throw (ex-info (str (tru "Password login is disabled for this instance."))
                         {:status-code 400})))
-      (when-not (sso/password-login-allowed? (:is_superuser (session.db/user user-id)))
+      (when-not (sso.settings/password-login-allowed? (:is_superuser (session.db/user user-id)))
         (throw (ex-info (str (tru "Password login is only available to administrators. Sign in with single sign-on."))
                         {:status-code 400}))))))
 

@@ -5,6 +5,7 @@
    [metabase.app-db.encryption-test-util :as encryption-tu]
    [metabase.auth-identity.core :as auth-identity]
    [metabase.permissions.core :as perms]
+   [metabase.permissions.models.permissions-group-membership :as perms-group-membership]
    [metabase.sso.oidc.state :as oidc.state]
    [metabase.sso.providers.sso-oidc :as sso-oidc.provider]
    [metabase.sso.settings :as sso.settings]
@@ -254,7 +255,7 @@
                               #(is (sso.test-helpers/successful-login? (sign-in!))))
               (is (= #{analysts finance} (group-ids))))
             (testing "groups that are not mapped are left alone"
-              (perms/add-user-to-group! (user-id) manual))
+              (perms-group-membership/add-users-to-groups! [{:user (user-id) :group manual}]))
             (testing "a later sign-in removes groups the user left in the identity provider"
               (do-with-claims {:groups ["Analysts"]}
                               #(is (sso.test-helpers/successful-login? (sign-in!))))
