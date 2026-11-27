@@ -47,7 +47,7 @@ jobs:
           java-version: "25"
 
       - name: Build
-        run: ./bin/build.sh
+        run: ./bin/build.sh :version '"v0.66.0-SNAPSHOT"'
 
       - name: Check that no enterprise code is in the jar
         run: |
