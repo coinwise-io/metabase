@@ -2,7 +2,7 @@ name: Coinwise build
 
 # Builds the open-source (AGPL) edition of this fork and publishes it:
 #   - the uberjar as a workflow artifact
-#   - a Docker image to the Amazon ECR repository metabase/prd (zrodata account), tagged sha-<commit>
+#   - a Docker image to the Amazon ECR repository metabase/prd (zrodata account), tagged <tag> for a v* tag or sha-<commit> for master
 #
 # Only the OSS edition is built. The jar is checked to contain nothing from `enterprise/`, which is under the
 # Metabase Commercial License and must never ship in our build.
@@ -46,7 +46,6 @@ jobs:
         with:
           java-version: "25"
 
-      # A tag build takes its version from the tag; any other build has no release version (vUNKNOWN).
       - name: Build
         run: |
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
