@@ -46,8 +46,14 @@ jobs:
         with:
           java-version: "25"
 
+      # A tag build takes its version from the tag; any other build has no release version (vUNKNOWN).
       - name: Build
-        run: ./bin/build.sh :version '"v0.66.0-SNAPSHOT"'
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            ./bin/build.sh :version "\"$GITHUB_REF_NAME\""
+          else
+            ./bin/build.sh
+          fi
 
       - name: Check that no enterprise code is in the jar
         run: |
@@ -120,7 +126,7 @@ jobs:
   docker:
     name: Build and publish Docker image
     needs: uberjar
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -152,12 +158,17 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: echo "name=$REGISTRY/metabase/prd" >> "$GITHUB_OUTPUT"
 
-      # The ECR repository has immutable tags, so only the per-commit tag is pushed.
+      # The ECR repository has immutable tags: a release gets its git tag, master gets the per-commit tag.
       - name: Image tags
         id: tags
         env:
           IMAGE: ${{ steps.image.outputs.name }}
-        run: echo "tags=$IMAGE:sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            echo "tags=$IMAGE:$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=$IMAGE:sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
@@ -173,9 +184,9 @@ jobs:
 
       - name: Check that the image starts
         env:
-          IMAGE: ${{ steps.image.outputs.name }}
+          TAG: ${{ steps.tags.outputs.tags }}
         run: |
-          docker run --rm -d --name metabase -p 3000:3000 "$IMAGE:sha-${GITHUB_SHA::12}"
+          docker run --rm -d --name metabase -p 3000:3000 "$TAG"
           for _ in $(seq 1 300); do
             if curl -s http://localhost:3000/api/health | grep -q '"status":"ok"'; then
               echo "Metabase is healthy."
